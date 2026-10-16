@@ -11,10 +11,7 @@ function App() {
   const [notification, setNotification] = useState({ message: '', type: '' });
 
   useEffect(() => {
-    fetchTodos();
-  }, []);
-
-  const fetchTodos = async () => {
+const fetchTodos = async () => {
     try {
       const response = await todoService.getAllTodos();
       setTodos(response.data);
@@ -23,6 +20,11 @@ function App() {
       showNotification('Error fetching todos.', 'error');
     }
   };
+
+    fetchTodos();
+  }, []);
+
+  
 
   const addTodo = async (todo) => {
     try {
