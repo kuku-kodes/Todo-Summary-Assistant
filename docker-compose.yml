@@ -1,0 +1,23 @@
+
+services:
+  backend:
+    image: todo-summary-backend:local
+    container_name: todo-summary-backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://host.docker.internal:3306/todo_db?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      COHERE_API_KEY: ${COHERE_API_KEY}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
+    restart: unless-stopped
+
+  frontend:
+    image: todo-summary-frontend:local
+    container_name: todo-summary-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
