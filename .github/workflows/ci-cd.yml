@@ -62,3 +62,48 @@ jobs:
           CI: true
           REACT_APP_API_BASE_URL: http://localhost:8080/api/todos
         run: npm run build
+
+  docker-publish:
+    name: Build and Push Images to Amazon ECR
+    needs: [backend-build, frontend-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./Backend/todo-summary-assistant
+          push: true
+          tags: |
+            119826412565.dkr.ecr.ap-south-1.amazonaws.com/todo-summary-backend:${{ github.sha }}
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./Frontend/todo
+          push: true
+          build-args: |
+            REACT_APP_API_BASE_URL=${{ vars.REACT_APP_API_BASE_URL }}
+          tags: |
+            119826412565.dkr.ecr.ap-south-1.amazonaws.com/todo-summary-frontend:${{ github.sha }}
