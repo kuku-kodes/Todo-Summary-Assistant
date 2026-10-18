@@ -1,0 +1,7 @@
+.env
+.env.*
+!.env.example
+**/backend.env
+**/.grafana_password
+**/monitoring/.env
+.DS_Store

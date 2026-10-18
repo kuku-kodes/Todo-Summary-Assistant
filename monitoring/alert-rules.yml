@@ -1,0 +1,31 @@
+groups:
+  - name: todo-assistant-alerts
+    rules:
+      - alert: TodoBackendDown
+        expr: up{job="todo-backend"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: Todo backend metrics endpoint is unavailable
+          description: Check backend container status, network, Actuator configuration and logs.
+      - alert: TodoBackendHigh5xxRate
+        expr: (sum(rate(http_server_requests_seconds_count{job="todo-backend",status=~"5.."}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{job="todo-backend"}[5m])), 0.001)) > 0.05
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: Backend 5xx response rate exceeds 5 percent
+          description: Inspect backend logs and downstream database or API dependencies.
+      - alert: EC2HighCPU
+        expr: 100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 85
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: Host CPU utilization exceeds 85 percent
+          description: Investigate sustained CPU usage and container workload.
+      - alert: EC2LowDiskSpace
+        expr: (node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) < 0.15
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: Root filesystem has less than 15 percent free space
+          description: Review Docker images, container logs and host disk usage.

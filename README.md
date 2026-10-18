@@ -1,126 +1,492 @@
-# Todo Summary Assistant
+# Todo Summary Assistant — DevOps Deployment
 
-A full-stack application to manage personal to-do items, summarize pending tasks using Cohere LLM, and send the summary to a Slack channel.
+A full-stack Todo Summary Assistant application deployed on AWS using Docker, Amazon ECR, Amazon EC2, Amazon RDS for MySQL, GitHub Actions, Prometheus, and Grafana.
+
+This repository demonstrates containerization, automated CI/CD, cloud deployment, application health checks, infrastructure security, and monitoring.
 
 ## Table of Contents
 
-* [Features](#features)
-* [Tech Stack](#tech-stack)
-* [Setup Instructions](#setup-instructions)
-    * [Prerequisites](#prerequisites)
-    * [Backend Setup](#backend-setup)
-    * [Frontend Setup](#frontend-setup)
-* [LLM (Cohere) Setup](#llm-cohere-setup)
-* [Slack Integration Setup](#slack-integration-setup)
-* [Design/Architecture Decisions](#designarchitecture-decisions)
+- [Project Overview](#project-overview)
+- [Architecture](#architecture)
+- [Technology Stack](#technology-stack)
+- [Prerequisites](#prerequisites)
+- [Local Setup and Execution](#local-setup-and-execution)
+- [Environment Configuration](#environment-configuration)
+- [Docker Design and Containerization](#docker-design-and-containerization)
+- [CI/CD Pipeline](#cicd-pipeline)
+- [AWS Deployment and Security](#aws-deployment-and-security)
+- [Monitoring and Alerting](#monitoring-and-alerting)
+- [Assumptions and Design Decisions](#assumptions-and-design-decisions)
+- [Troubleshooting](#troubleshooting)
 
+## Project Overview
 
-## Features
+The project contains a React frontend, a Spring Boot REST API, and a MySQL database. The application is containerized and deployed to an EC2 instance, while the database is hosted separately on Amazon RDS.
 
-* **Create, Edit, Delete To-Do Items:** Full CRUD operations for personal to-do items.
-* **View To-Do List:** Display current to-do items with their status.
-* **Summarize Pending To-Dos:** Utilizes Cohere LLM to generate a concise summary of all pending to-do items.
-* **Send Summary to Slack:** Automatically posts the generated summary to a configured Slack channel using Incoming Webhooks.
-* **Notifications:** Provides success/failure messages for Slack operations.
+GitHub Actions automates application validation, Docker image creation, publishing to Amazon ECR, and deployment to EC2 using AWS Systems Manager (SSM).
 
-## Tech Stack
+Prometheus collects application and host metrics, while Grafana provides dashboards for application performance and infrastructure health.
 
-* **Frontend:** HTML, CSS, Javascript, React, Axios(for API calls), 
-* **Backend:** Spring Boot (Java 17+), Maven
-* **Database:** MySQL (via Spring Data JPA and Hibernate)
-* **LLM:** Cohere API
-* **Messaging:** Slack Incoming Webhooks
-* **HTTP Client:** OkHttp (for Cohere and Slack API calls in backend)
+### Key DevOps objectives
 
-## Setup Instructions
+- Containerize the frontend and backend using Docker.
+- Build optimized images using multi-stage Dockerfiles.
+- Automate build, test, image publishing, and deployment through GitHub Actions.
+- Use Amazon ECR as the container image registry.
+- Host the application on Amazon EC2 and the database on Amazon RDS for MySQL.
+- Externalize application configuration and keep credentials out of source control.
+- Monitor application and infrastructure health using Prometheus and Grafana.
+- Document deployment failures, rollback procedures, and operational practices.
 
-### Prerequisites
+## Architecture
 
-* Java Development Kit (JDK) 17 or higher
-* Node.js and npm (or yarn)
-* MySQL Server running locally or accessible remotely
-* A Cohere API Key
-* A Slack Workspace and an Incoming Webhook URL
+```text
+                   Developer
+                       |
+                       v
+                GitHub Repository
+                       |
+                       v
+               GitHub Actions CI/CD
+                       |
+                Build and Validate
+                       |
+                Build Docker Images
+                       |
+                       v
+                 Amazon ECR
+              /              \
+             v                v
+      Backend Image      Frontend Image
+             \                /
+              \              /
+               v            v
+                  Amazon EC2
+             +--------------------+
+             | Docker Containers  |
+             |                    |
+             | React + Nginx      |
+             | Spring Boot API    |
+             +--------------------+
+                       |
+                       v
+                Amazon RDS MySQL
+                 Private Network
 
-### Backend Setup
+    Prometheus <--- Application Metrics
+        |
+        +--------- Node Exporter
+        |
+        v
+      Grafana Dashboard and Alerts
+```
 
-1.  **Clone the repository:**
-    ```bash
-    git clone [https://github.com/your-username/todo-summary-assistant.git](https://github.com/your-username/todo-summary-assistant.git)
-    cd todo-summary-assistant/backend
-    ```
-2.  **Configure `application.properties`:**
-    Open `src/main/resources/application.properties` and update the following:
-    ```properties
-    spring.datasource.url=jdbc:mysql://localhost:3306/todo_db?createDatabaseIfNotExist=true
-    spring.datasource.username=root
-    spring.datasource.password=your_mysql_password_here # <-- IMPORTANT: Replace with your MySQL root password
-    cohere.api.key=YOUR_COHERE_API_KEY # <-- IMPORTANT: Replace with your Cohere API Key
-    slack.webhook.url=YOUR_SLACK_WEBHOOK_URL # <-- IMPORTANT: Replace with your Slack Incoming Webhook URL
-    ```
-3.  **Build and Run:**
-    ```bash
-    mvn clean install
-    mvn spring-boot:run
-    ```
-    The backend will start on `http://localhost:8080`.
+The diagram is a logical overview. Refer to `aws/architecture-diagram.png` for the deployment architecture and network boundaries.
 
-### Frontend Setup
+## Technology Stack
 
-1.  **Navigate to the frontend directory:**
-    ```bash
-    cd ../frontend
-    ```
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    # or yarn install
-    ```
-3.  **Run the React application:**
-    ```bash
-    npm start
-    # or yarn start
-    ```
-    The frontend will open in your browser at `http://localhost:3000`.
+| Component | Technology |
+|---|---|
+| Frontend | React.js, Node.js build environment, Nginx |
+| Backend | Java 21, Spring Boot, Maven |
+| Database | Amazon RDS for MySQL |
+| Containerization | Docker |
+| Container Registry | Amazon ECR |
+| Cloud Hosting | Amazon EC2 |
+| CI/CD | GitHub Actions |
+| Deployment | AWS Systems Manager (SSM) |
+| Monitoring | Prometheus, Node Exporter, Grafana |
+| Metrics Endpoint | Spring Boot Actuator with Prometheus metrics |
+| Source Control | Git and GitHub |
 
-## LLM (Cohere) Setup
+## Prerequisites
 
-1.  **Create a Cohere Account:** Visit [Cohere.ai](https://cohere.ai/) and sign up for a free account.
-2.  **Obtain API Key:** Once logged in, navigate to your dashboard or API keys section to find your API key.
-3.  **Update `application.properties`:** Paste your Cohere API key into `cohere.api.key` in the backend's `application.properties` file.
+Install the following tools before running the application locally:
 
-## Slack Integration Setup
+- Git
+- Java 21
+- Maven, or the project's Maven Wrapper if provided
+- Node.js and npm
+- Docker Engine and Docker Compose, if running containers locally
 
-1.  **Create a Slack App:**
-    * Go to [api.slack.com/apps](https://api.slack.com/apps).
-    * Click "Create New App" and choose "From scratch".
-    * Give your app a name (e.g., "Todo Summary Bot") and select your Slack workspace.
-2.  **Activate Incoming Webhooks:**
-    * From your app's settings page, navigate to "Features" -> "Incoming Webhooks".
-    * Toggle the "Activate Incoming Webhooks" switch to "On".
-    * Scroll down and click the "Add New Webhook to Workspace" button.
-    * Select the specific channel where you want the to-do summaries to be posted (e.g., `#general`, `#todos`, or a new channel).
-    * Click "Allow".
-3.  **Copy Webhook URL:**
-    * A unique Webhook URL will be generated. Copy this URL.
-4.  **Update `application.properties`:** Paste this URL into `slack.webhook.url` in the backend's `application.properties` file.
+You will also need access to a MySQL database and any external API credentials required by the application's configuration.
 
-## Design/Architecture Decisions
+## Local Setup and Execution
 
-* **Separation of Concerns:** The project is cleanly separated into frontend (React) and backend (Spring Boot) directories, allowing independent development and deployment.
-* **RESTful API:** The backend exposes standard RESTful endpoints for managing todos, ensuring clear and predictable communication with the frontend.
-* **Spring Data JPA:** Leveraged for efficient and simplified database interactions with MySQL, reducing boilerplate code for data access.
-* **Service Layer:** Business logic (CRUD operations, LLM calls, Slack calls) is encapsulated within dedicated service classes, promoting modularity and testability.
-* **External API Integration:** `OkHttp` was chosen as a lightweight and efficient HTTP client for making external API calls to Cohere and Slack.
-* **CORS Configuration:** Explicit CORS configuration in Spring Boot ensures that the React frontend can communicate with the backend.
-* **Error Handling:** Basic error handling is implemented on both frontend and backend to provide user feedback and log issues.
-* **LLM Prompt Engineering:** A simple prompt is used for Cohere to instruct it on summarizing the list of to-do items. This can be further refined for better results.
-* **Notification System:** A simple notification component in React provides immediate feedback to the user about operations.
+### 1. Clone the repository
 
-## Demo Images
+```bash
+git clone <YOUR_GITHUB_REPOSITORY_URL>
+cd TodoSummaryAssistant
+```
 
-![Screenshot (1146)](https://github.com/user-attachments/assets/53fe53e3-b527-4659-9ab6-b462ae034fbd)
+### 2. Start the backend
 
-![Screenshot (1144)](https://github.com/user-attachments/assets/474b1a46-36c8-4407-8bf9-a46ca911603b)
+Navigate to the backend directory:
 
-![Screenshot (1143)](https://github.com/user-attachments/assets/1e9f8783-d0df-42ce-a3f8-ec7ca5e7c078)
+```bash
+cd Backend/todo-summary-assistant
+```
+
+Configure the database connection and any required external service credentials using environment variables or a local, untracked environment file.
+
+Build the backend:
+
+```bash
+mvn clean package
+```
+
+If the project includes a Maven Wrapper, you can use `./mvnw clean package` instead.
+
+Run the application:
+
+```bash
+mvn spring-boot:run
+```
+
+The backend is configured to listen on port `8080` in the deployment environment. Verify the actual local port and health endpoint against the application configuration.
+
+If Spring Boot Actuator is enabled, check:
+
+```bash
+curl -i http://localhost:8080/actuator/health
+```
+
+A healthy application should return HTTP 200 with a status of `UP`.
+
+### 3. Start the frontend
+
+Open a second terminal and navigate to the frontend directory:
+
+```bash
+cd Frontend/todo
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Inspect `package.json` for the available scripts, then start the development server using the appropriate script. For example, if the project defines a `dev` script:
+
+```bash
+npm run dev
+```
+
+If it defines a `start` script instead, use:
+
+```bash
+npm start
+```
+
+Configure the frontend's API base URL to point to the locally running backend. Use the environment-variable name expected by the frontend build configuration.
+
+### 4. Configure MySQL
+
+The backend requires a reachable MySQL database. You can use a local MySQL instance for development or a suitably secured development database.
+
+Configure the database URL, database name, username, and password through the application's supported environment variables or configuration mechanism.
+
+Do not use production database credentials for local development.
+
+### 5. Run with Docker
+
+Build the backend image from the repository root:
+
+```bash
+docker build \
+  -t todo-summary-backend:local \
+  -f Backend/todo-summary-assistant/Dockerfile \
+  Backend/todo-summary-assistant
+```
+
+Build the frontend image:
+
+```bash
+docker build \
+  -t todo-summary-frontend:local \
+  -f Frontend/todo/Dockerfile \
+  Frontend/todo
+```
+
+Run the containers with the environment configuration and network settings required by the application. Ensure that the backend can resolve and reach the configured MySQL host.
+
+If a root-level `docker-compose.yml` is included and configured for local development, it can be used instead:
+
+```bash
+docker compose up --build -d
+docker compose ps
+docker compose logs --tail=100
+```
+
+Use the ports and service names defined in the Compose file. Do not assume that the local development setup and the production EC2 setup use identical ports or environment files.
+
+To stop a local Compose environment:
+
+```bash
+docker compose down
+```
+
+This command should only be run against the intended local Compose project, not against the production deployment.
+
+## Environment Configuration
+
+Application configuration must be supplied externally instead of being committed to the repository.
+
+Create a local environment file based on `.env.example`, if provided, and fill in the required values locally.
+
+Typical configuration categories include:
+
+| Configuration | Purpose |
+|---|---|
+| Database URL/host | Identifies the MySQL database |
+| Database name | Selects the application database |
+| Database username | Authenticates the backend to MySQL |
+| Database password | Authenticates the backend to MySQL |
+| External API key | Authenticates any required external AI/API integration |
+| Webhook URL | Configures any required notification integration |
+
+Use the exact variable names supported by the application and deployment script. The names above describe configuration categories, not a guarantee of the application's literal variable names.
+
+**Security requirements:**
+
+- Never commit `.env` files, database passwords, API keys, webhook URLs, private keys, or access tokens.
+- Keep production values in GitHub Actions secrets or an appropriate AWS secret-management service.
+- Keep production environment files on EC2 restricted to the deployment user and authorized administrators.
+- Commit only placeholder values in `.env.example`.
+
+## Docker Design and Containerization
+
+The project uses separate Docker images for the frontend and backend.
+
+### Backend Dockerfile
+
+The backend Dockerfile should use a multi-stage build:
+
+1. **Build stage:** Uses a Java/Maven build environment to resolve dependencies, compile the application, and package the executable JAR.
+2. **Runtime stage:** Uses a smaller Java runtime image and copies only the packaged application into the final image.
+
+The runtime process should run as a non-root user. Database configuration and other application settings are provided at runtime through environment variables rather than embedded in the image.
+
+### Frontend Dockerfile
+
+The frontend Dockerfile should use a multi-stage build:
+
+1. **Build stage:** Uses Node.js and npm to install dependencies and generate optimized production assets.
+2. **Runtime stage:** Uses Nginx to serve the generated static assets without including the Node.js build environment in the final image.
+
+The production frontend listens on the port configured by Nginx and the deployment. API routing must be configured to reach the backend correctly.
+
+### `.dockerignore` files
+
+Separate `.dockerignore` files should be maintained in the backend and frontend build contexts.
+
+They should exclude unnecessary content such as:
+
+- `node_modules/`
+- Build output and temporary files that do not belong in the image
+- `.git/`
+- Local environment files containing secrets
+- Logs, caches, and IDE-specific files
+
+The exact exclusions should preserve all files needed for a successful build.
+
+### Benefits of this design
+
+- **Smaller images:** Build tools and intermediate files are excluded from runtime images.
+- **Reduced attack surface:** The production application runs as a non-root user and does not need the full build toolchain.
+- **Repeatability:** The same Docker build process can be used by developers and CI/CD.
+- **Configuration separation:** Environment-specific values are supplied at runtime.
+- **Independent deployment:** Frontend and backend images can be built, published, and updated separately.
+
+## CI/CD Pipeline
+
+The GitHub Actions workflow is located at:
+
+```text
+.github/workflows/ci-cd.yml
+```
+
+The pipeline automates the delivery process from a Git event to deployment on EC2.
+
+### Pipeline stages
+
+| Stage | Responsibility |
+|---|---|
+| 1. Trigger | Starts the workflow on the configured Git push or pull request events. |
+| 2. Checkout | Retrieves the application source from the repository. |
+| 3. Build and test | Builds the backend and frontend and executes the configured tests. Where automated tests are absent, the pipeline should explicitly document the validation performed. |
+| 4. AWS authentication | Obtains AWS credentials through the configured GitHub OIDC role, avoiding long-lived AWS access keys in the repository. |
+| 5. Image build | Builds the backend and frontend Docker images. |
+| 6. Image tagging | Tags images with the Git commit SHA so a specific build can be identified and redeployed. |
+| 7. Publish | Authenticates to Amazon ECR and pushes both images to their respective repositories. |
+| 8. Deploy | Uses AWS Systems Manager to execute the deployment process on the EC2 instance. |
+| 9. Health verification | Checks the deployed application's health and fails the workflow if the configured verification fails. |
+
+### Image tagging
+
+The workflow uses the commit SHA to identify each build:
+
+```text
+<backend-ecr-repository>:<commit-sha>
+<frontend-ecr-repository>:<commit-sha>
+```
+
+This makes it easier to identify which version was deployed and to select a previous image for rollback.
+
+### AWS authentication and secrets
+
+The pipeline should use GitHub Actions OIDC with the configured IAM role, `Github-Action-role`, and only the permissions required to publish images and invoke the deployment mechanism.
+
+The EC2 instance uses its attached IAM role to access required AWS services. Database credentials and other application secrets are not stored in the repository or embedded in Docker images.
+
+Configure the workflow's required GitHub variables, repository names, role identifiers, region, and deployment settings according to the actual workflow file.
+
+### Deployment and failure handling
+
+The deployment process should:
+
+- Pull the images identified by the current commit SHA.
+- Confirm that required production configuration exists before replacing running containers.
+- Attach the containers to the intended Docker network.
+- Start the backend with its protected environment configuration.
+- Start the frontend on its configured web port.
+- Perform a post-deployment health check.
+- Return a failure status if deployment or health verification fails.
+
+A failed health check should trigger investigation and, where the deployment script implements it, rollback to the previous known-good image. Review `FAILURE_AND_ROLLBACK.md` for the recovery procedure.
+
+## AWS Deployment and Security
+
+### EC2
+
+The EC2 instance hosts the application containers and the monitoring stack. Docker is used to run the frontend, backend, Prometheus, Grafana, and Node Exporter.
+
+The instance profile supplies AWS permissions to the instance. Access should be restricted to authorized administrators and the required application traffic.
+
+### Amazon RDS for MySQL
+
+The application database is hosted on Amazon RDS rather than inside an application container.
+
+The RDS instance should remain private and accept MySQL connections only from the EC2 security group. Database credentials are supplied to the backend securely at runtime.
+
+### Amazon ECR
+
+Amazon ECR stores the backend and frontend images. The CI/CD workflow publishes commit-specific tags so that deployments can reference an identifiable application version.
+
+### Security controls
+
+- Restrict inbound EC2 ports to those required by the application and authorized administration.
+- Restrict SSH access to approved source IP addresses if SSH is enabled.
+- Keep the RDS instance private and restrict its inbound rules to the application security group.
+- Apply least-privilege IAM permissions to the GitHub deployment role and EC2 instance role.
+- Avoid long-lived AWS access keys in GitHub workflow files.
+- Keep secrets out of source control, Docker build contexts, and image layers.
+- Bind monitoring interfaces to localhost or protect them behind an approved access mechanism rather than exposing them publicly.
+
+See `aws/aws-setup.md` for the deployment-specific setup and security-group documentation.
+
+## Monitoring and Alerting
+
+Prometheus and Grafana run as containers on the EC2 instance.
+
+### Prometheus
+
+The configuration file is maintained under the monitoring directory. Prometheus scrapes:
+
+- **Backend metrics:** Spring Boot Actuator Prometheus endpoint at `/actuator/prometheus`.
+- **Host metrics:** Node Exporter metrics for EC2 system monitoring.
+- **Prometheus self-metrics:** Health and operational information about the monitoring server itself.
+
+The scrape interval and target definitions are controlled by `prometheus.yml`.
+
+### Grafana
+
+Grafana uses Prometheus as its data source and provides an operations dashboard covering the following categories:
+
+- Backend request rate.
+- HTTP error rate.
+- Request latency.
+- EC2 CPU utilization.
+- Available disk space.
+- JVM memory usage.
+- Backend and exporter availability.
+- Container restart metrics, where a suitable container-metrics source is configured.
+
+Some panels require the corresponding metrics to be present. For example, container restart panels require a source that exposes container-level metrics; Node Exporter alone does not provide complete container restart information.
+
+### Alert rules
+
+The configured Prometheus rules include:
+
+- **TodoBackendDown:** Detects when the backend scrape target is unavailable.
+- **TodoBackendHigh5xxRate:** Detects a sustained high proportion of HTTP 5xx responses.
+- **EC2LowDiskSpace:** Detects low available disk space on the monitored root filesystem.
+
+These rules are evaluated by Prometheus. To deliver notifications to email, Slack, or another destination, configure Alertmanager or another supported notification integration with an appropriate receiver.
+
+Configuration files and operating procedures are maintained under `monitoring/` and in `MONITORING_AND_OPERATIONS.md`.
+
+## Assumptions and Design Decisions
+
+1. The existing application business logic remains unchanged except for changes needed to support environment-based configuration, health checks, and metrics.
+2. The backend uses Java 21 and Spring Boot with Maven. The frontend is a React application managed through npm.
+3. MySQL is hosted on Amazon RDS and is not deployed as a production application container.
+4. EC2 is responsible for hosting the application and monitoring containers.
+5. GitHub Actions is the selected CI/CD platform, Amazon ECR is the image registry, and AWS Systems Manager is the deployment mechanism.
+6. Commit-SHA image tags are used to identify deployments and support recovery to a previous image version.
+7. Application credentials and external service secrets are provided outside the source code.
+8. The deployment assumes that the EC2 instance has Docker installed, the required IAM permissions, access to ECR, and network connectivity to RDS.
+9. Automated tests are executed when available and configured. A successful build alone must not be represented as proof that all application tests passed.
+10. Prometheus alert rules evaluate conditions but do not deliver external notifications unless a notification receiver is configured.
+11. Monitoring dashboards can only display metrics exposed by the configured scrape targets. Missing metrics must be investigated rather than treated as healthy results.
+12. AWS resource availability, security-group rules, IAM permissions, secret configuration, and billing depend on the actual deployed environment and must be verified independently.
+
+## Troubleshooting
+
+### Backend fails to start
+
+Check the container logs:
+
+```bash
+docker logs --tail=100 backend
+```
+
+Verify the database endpoint, credentials, environment variables, network connectivity, and application configuration.
+
+### Frontend cannot reach the backend
+
+Check the frontend API URL, Nginx configuration, backend container status, Docker network connectivity, and browser console errors.
+
+### GitHub Actions deployment fails
+
+Review the failed workflow stage. Verify the OIDC role trust relationship, IAM permissions, ECR repository names, image tags, SSM permissions, EC2 managed-instance connectivity, and deployment logs.
+
+### Prometheus target is down
+
+Inspect the Prometheus target status and verify that the target name resolves on the monitoring network. Check the backend Actuator endpoint and Node Exporter health.
+
+### Grafana dashboard shows no data
+
+Confirm that the Prometheus data source is healthy, the relevant scrape targets are up, the dashboard queries match the available metric names, and sufficient metrics have been collected for the selected time range.
+
+### Disk space is low
+
+Inspect Docker images, unused containers, logs, and persistent monitoring data before removing anything. Avoid deleting running application containers or persistent volumes as a first response.
+
+## Operational Documentation
+
+Refer to these files for additional deployment and recovery details:
+
+- `aws/architecture-diagram.png` — deployment architecture.
+- `aws/aws-setup.md` — AWS networking, IAM, and security configuration.
+- `monitoring/prometheus.yml` — Prometheus scrape configuration.
+- `monitoring/alert-rules.yml` — Prometheus alert definitions.
+- `monitoring/grafana-dashboard.json` — Grafana dashboard definition, if stored under this name.
+- `FAILURE_AND_ROLLBACK.md` — deployment failure and recovery procedures.
+- `MONITORING_AND_OPERATIONS.md` — metrics, logs, alerts, and operational practices.
+
+---
+
+**Note:** Verify all paths and filenames against the final repository before submission. Documentation describes the intended design; actual configuration files and successful pipeline runs are the source of truth for implementation status.
